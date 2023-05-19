@@ -7,10 +7,32 @@ import { IStatementsRepository } from "../IStatementsRepository";
 export class InMemoryStatementsRepository implements IStatementsRepository {
   private statements: Statement[] = [];
 
-  async create(data: ICreateStatementDTO): Promise<Statement> {
+  async create({
+    user_id,
+    sender_id,
+    amount,
+    description,
+    type
+  }: ICreateStatementDTO): Promise<Statement> {
     const statement = new Statement();
 
-    Object.assign(statement, data);
+    if (type === 'transfer') {
+      Object.assign(statement, {
+        user_id,
+        sender_id,
+        amount,
+        description,
+        type
+      });
+    }
+    else {
+      Object.assign(statement, {
+        user_id,
+        amount,
+        description,
+        type
+      });
+    }
 
     this.statements.push(statement);
 
@@ -20,7 +42,7 @@ export class InMemoryStatementsRepository implements IStatementsRepository {
   async findStatementOperation({ statement_id, user_id }: IGetStatementOperationDTO): Promise<Statement | undefined> {
     return this.statements.find(operation => (
       operation.id === statement_id &&
-      operation.user_id === user_id
+      (operation.user_id === user_id || operation.sender_id === user_id)
     ));
   }
 
@@ -29,13 +51,23 @@ export class InMemoryStatementsRepository implements IStatementsRepository {
       { balance: number } | { balance: number, statement: Statement[] }
     >
   {
-    const statement = this.statements.filter(operation => operation.user_id === user_id);
+    const statement = this.statements.filter(operation => operation.user_id === user_id || operation.sender_id === user_id);
 
     const balance = statement.reduce((acc, operation) => {
-      if (operation.type === 'deposit') {
-        return acc + operation.amount;
-      } else {
-        return acc - operation.amount;
+      if (operation.type === 'transfer')
+      {
+        if (operation.user_id === user_id) {
+          return acc + operation.amount;
+        } else if (operation.sender_id === user_id){
+          return acc - operation.amount;
+        }
+      }
+      else {
+        if (operation.type === 'deposit') {
+          return acc + operation.amount;
+        } else {
+          return acc - operation.amount;
+        }
       }
     }, 0)
 
